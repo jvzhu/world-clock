@@ -32,7 +32,7 @@ No build step or dependencies required — it is plain HTML, CSS, and JavaScript
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone REPOSITORY_URL
    cd world-clock
    ```
 
