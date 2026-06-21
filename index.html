@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Clock</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🌍 World Clock</h1>
+    <p class="subtitle">Current time across major time zones</p>
+  </header>
+
+  <main class="clocks-container">
+    <div class="clock-card" id="utc">
+      <div class="timezone-name">UTC</div>
+      <div class="timezone-label">Coordinated Universal Time</div>
+      <div class="time" id="time-utc">--:--:--</div>
+    </div>
+
+    <div class="clock-card" id="est">
+      <div class="timezone-name">ET</div>
+      <div class="timezone-label">Eastern Time (New York)</div>
+      <div class="time" id="time-est">--:--:--</div>
+    </div>
+
+    <div class="clock-card" id="pst">
+      <div class="timezone-name">PT</div>
+      <div class="timezone-label">Pacific Time (Los Angeles)</div>
+      <div class="time" id="time-pst">--:--:--</div>
+    </div>
+
+    <div class="clock-card" id="jst">
+      <div class="timezone-name">JST</div>
+      <div class="timezone-label">Japan Standard Time</div>
+      <div class="time" id="time-jst">--:--:--</div>
+    </div>
+  </main>
+
+  <footer>
+    <p>Updates every second &bull; Times shown in 24-hour format</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
