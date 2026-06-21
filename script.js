@@ -12,7 +12,7 @@ const TIMEZONES = [
 ];
 
 /**
- * Returns the current time string (HH:MM:SS) for a given IANA timezone.
+ * Returns a time string (HH:MM:SS) for a given IANA timezone and date.
  * @param {string} iana - IANA timezone identifier (e.g. 'America/New_York')
  * @param {Date} date - Date instance to format
  * @returns {string}
