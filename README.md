@@ -1,59 +1,82 @@
 # 🌍 World Clock
 
-A simple, responsive digital clock application that displays the current time in four major time zones, updated every second.
+A production-ready world clock web app with real-time multi-timezone tracking, conversion, scheduling, customization, and GitHub Pages deployment.
 
-## Features
+## ✨ Features
 
-- Real-time clock updates every second
-- Displays time in **HH:MM:SS** (24-hour) format
-- Four time zones shown simultaneously:
-  | Label | Full Name                   | IANA Timezone        |
-  |-------|-----------------------------|----------------------|
-  | UTC   | Coordinated Universal Time  | UTC                  |
-  | ET    | Eastern Time (New York)     | America/New_York     |
-  | PT    | Pacific Time (Los Angeles)  | America/Los_Angeles  |
-  | JST   | Japan Standard Time         | Asia/Tokyo           |
-- Responsive grid layout — works on desktop, tablet, and mobile
-- Dark-themed, glassmorphism-style UI
+### Core functionality
+- Add/remove up to 12 time zones dynamically
+- Real-time updates every second
+- Search time zones by city/region/country/IANA
+- Pin favorite zones to keep them sorted first
+- Persistent preferences via `localStorage`
 
-## Project Structure
+### UI and customization
+- Responsive design for desktop/mobile
+- Analog + digital clocks (switchable)
+- 12/24-hour toggle
+- Dark/light theme toggle
+- Grid/list/compact layout modes
+- Accent color, font, and clock size controls
+- Auto-update toggle
 
+### Advanced tools
+- Time zone converter with offset difference display
+- Local time comparison against each zone
+- Meeting scheduler (best overlap in next 24h)
+- Sunrise/sunset reference per configured city
+- Popular and recent timezone quick-access chips
+
+### Accessibility and quality
+- Semantic landmarks and ARIA labels
+- Keyboard-accessible controls/buttons
+- Contrast-conscious theme tokens
+- Node test suite for timezone and scheduler utilities
+
+## 🚀 Run locally
+
+No build step is required.
+
+1. Clone the repository
+2. Open `index.html` in a modern browser
+
+```bash
+git clone REPOSITORY_URL
+cd world-clock
+xdg-open index.html
 ```
-world-clock/
-├── index.html   # Main HTML page with clock cards
-├── style.css    # Responsive styles
-├── script.js    # Clock logic (real-time updates)
-└── README.md    # This file
+
+## 🧪 Testing
+
+Run the automated tests with Node.js:
+
+```bash
+node --test
 ```
 
-## Usage
+## 📦 Deployment & CI/CD
 
-No build step or dependencies required — it is plain HTML, CSS, and JavaScript.
+- **CI workflow** (`.github/workflows/ci.yml`) runs `node --test` on pushes and pull requests.
+- **GitHub Pages workflow** (`.github/workflows/deploy-pages.yml`) deploys from `main`.
 
-1. Clone the repository:
-   ```bash
-   git clone REPOSITORY_URL
-   cd world-clock
-   ```
+To enable Pages in GitHub:
+1. Repository **Settings → Pages**
+2. Set source to **GitHub Actions**
+3. Push to `main`
 
-2. Open `index.html` in any modern web browser:
-   ```bash
-   # macOS
-   open index.html
+## 🧭 Architecture
 
-   # Linux
-   xdg-open index.html
+- `index.html`: app layout and accessible controls
+- `style.css`: responsive styling, themes, animations
+- `script.js`: timezone calculations, rendering, persistence, scheduler, converter
+- `tests/script.test.js`: utility-level tests
 
-   # Windows
-   start index.html
-   ```
+## 🛠 Troubleshooting
 
-   Or simply drag the `index.html` file into your browser window.
-
-## How It Works
-
-`script.js` uses the `Intl.DateTimeFormat` API with IANA timezone identifiers to retrieve the current time in each timezone. Daylight Saving Time is handled automatically by the browser's internationalization engine. The DOM is updated every second via `setInterval`.
+- If times look stale, ensure **Auto-update clocks** is enabled.
+- If no meeting slots appear, widen workday hours or reduce duration.
+- If deployment does not run, verify GitHub Pages is configured for Actions.
 
 ## License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT — see [LICENSE](LICENSE).
