@@ -7,39 +7,109 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
+  <header class="page-header">
     <h1>🌍 World Clock</h1>
-    <p class="subtitle">Current time across major time zones</p>
+    <p class="subtitle">Track, compare, and schedule across global time zones</p>
   </header>
 
-  <main class="clocks-container">
-    <div class="clock-card" id="utc">
-      <div class="timezone-name">UTC</div>
-      <div class="timezone-label">Coordinated Universal Time</div>
-      <div class="time" id="time-utc">--:--:--</div>
-    </div>
+  <main class="app-layout">
+    <section class="panel controls-panel" aria-label="Clock controls">
+      <h2>Time Zones</h2>
+      <div class="row">
+        <label for="timezone-search" class="sr-only">Search timezone by city, region, country, or IANA name</label>
+        <input id="timezone-search" type="text" autocomplete="off" placeholder="Search city, region, or timezone" />
+        <button id="add-timezone-btn" type="button">Add</button>
+      </div>
+      <div id="search-results" class="chip-list" aria-live="polite"></div>
 
-    <div class="clock-card" id="et">
-      <div class="timezone-name">ET</div>
-      <div class="timezone-label">Eastern Time (New York)</div>
-      <div class="time" id="time-et">--:--:--</div>
-    </div>
+      <div class="stack">
+        <h3>Recent</h3>
+        <div id="recent-timezones" class="chip-list" aria-live="polite"></div>
+      </div>
 
-    <div class="clock-card" id="pt">
-      <div class="timezone-name">PT</div>
-      <div class="timezone-label">Pacific Time (Los Angeles)</div>
-      <div class="time" id="time-pt">--:--:--</div>
-    </div>
+      <div class="stack">
+        <h3>Popular</h3>
+        <div id="popular-timezones" class="chip-list" aria-live="polite"></div>
+      </div>
 
-    <div class="clock-card" id="jst">
-      <div class="timezone-name">JST</div>
-      <div class="timezone-label">Japan Standard Time</div>
-      <div class="time" id="time-jst">--:--:--</div>
-    </div>
+      <div class="settings-grid" role="group" aria-label="Display settings">
+        <label class="toggle-row" for="hour-format-toggle">
+          <input id="hour-format-toggle" type="checkbox" />
+          12-hour format
+        </label>
+        <label class="toggle-row" for="theme-toggle">
+          <input id="theme-toggle" type="checkbox" />
+          Light theme
+        </label>
+        <label for="layout-select">Layout</label>
+        <select id="layout-select">
+          <option value="grid">Grid</option>
+          <option value="list">List</option>
+          <option value="compact">Compact</option>
+        </select>
+        <label for="clock-style-select">Clock style</label>
+        <select id="clock-style-select">
+          <option value="both">Analog + Digital</option>
+          <option value="digital">Digital only</option>
+          <option value="analog">Analog only</option>
+        </select>
+        <label for="clock-size-select">Clock size</label>
+        <select id="clock-size-select">
+          <option value="normal">Normal</option>
+          <option value="large">Large</option>
+        </select>
+        <label for="font-select">Font</label>
+        <select id="font-select">
+          <option value="system">System</option>
+          <option value="mono">Monospace</option>
+          <option value="serif">Serif</option>
+        </select>
+        <label for="accent-color">Accent color</label>
+        <input id="accent-color" type="color" value="#53d8fb" />
+        <label class="toggle-row" for="auto-update-toggle">
+          <input id="auto-update-toggle" type="checkbox" checked />
+          Auto-update clocks
+        </label>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Timezone clocks">
+      <h2>Clock Board</h2>
+      <p class="panel-note">Pin favorites to keep them on top. Compare local differences, offsets, and sunrise/sunset.</p>
+      <div id="clocks-container" class="clocks-container" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-label="Time converter">
+      <h2>Time Zone Converter</h2>
+      <div class="converter-grid">
+        <label for="converter-source">From timezone</label>
+        <select id="converter-source"></select>
+        <label for="converter-time">Time</label>
+        <input id="converter-time" type="time" value="09:00" />
+        <label for="converter-date">Date</label>
+        <input id="converter-date" type="date" />
+      </div>
+      <div id="converter-results" class="results-list" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-label="Meeting scheduler">
+      <h2>Meeting Scheduler</h2>
+      <p class="panel-note">Find upcoming slots with the highest overlap across selected zones.</p>
+      <div class="converter-grid">
+        <label for="work-start">Workday start</label>
+        <input id="work-start" type="number" min="0" max="23" value="9" />
+        <label for="work-end">Workday end</label>
+        <input id="work-end" type="number" min="1" max="24" value="17" />
+        <label for="meeting-duration">Duration (minutes)</label>
+        <input id="meeting-duration" type="number" min="15" step="15" value="60" />
+      </div>
+      <button id="find-meeting-btn" type="button">Find best times</button>
+      <ul id="meeting-results" class="results-list" aria-live="polite"></ul>
+    </section>
   </main>
 
   <footer>
-    <p>Updates every second &bull; Times shown in 24-hour format</p>
+    <p>Keyboard-friendly controls • WCAG-conscious contrast • Runs fully client-side</p>
   </footer>
 
   <script src="script.js"></script>
