@@ -225,6 +225,7 @@ body.layout-compact .clocks-container {
   color: var(--accent);
 }
 
+body.font-system { --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 body.font-mono { --font-family: 'Courier New', Courier, monospace; }
 body.font-serif { --font-family: Georgia, 'Times New Roman', serif; }
 

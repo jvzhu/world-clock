@@ -1,7 +1,14 @@
 const STORAGE_KEY = 'world-clock-state-v2';
+const MAX_ZONES = 12;
+const MAX_RECENT_ITEMS = 6;
+const MILLIS_PER_MINUTE = 60_000;
+const MAX_OFFSET_ITERATIONS = 3;
+// Matches offsets like GMT+05:30, GMT-08, GMT+0.
+const GMT_OFFSET_PATTERN = /GMT([+-])(\d{1,2})(?::(\d{2}))?/;
+const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const TIMEZONE_CATALOG = [
-  { iana: 'UTC', city: 'UTC', region: 'Global', country: 'International', sunrise: '06:00', sunset: '18:00', popular: true },
+  { iana: 'UTC', city: 'UTC', region: 'Global', country: 'International', sunrise: '--:--', sunset: '--:--', popular: true },
   { iana: 'America/New_York', city: 'New York', region: 'North America', country: 'USA', sunrise: '05:40', sunset: '20:15', popular: true },
   { iana: 'America/Los_Angeles', city: 'Los Angeles', region: 'North America', country: 'USA', sunrise: '05:45', sunset: '20:05', popular: true },
   { iana: 'America/Chicago', city: 'Chicago', region: 'North America', country: 'USA', sunrise: '05:20', sunset: '20:29', popular: true },
@@ -52,6 +59,15 @@ function safeCatalogItem(iana) {
   };
 }
 
+function isValidTimezone(iana) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: iana }).format(new Date());
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function getFormatter(timeZone, options) {
   const key = `${timeZone}:${JSON.stringify(options)}`;
   if (!formatterCache.has(key)) {
@@ -91,11 +107,13 @@ function getPartsForZone(iana, date) {
     hourCycle: 'h23',
   }).formatToParts(date);
 
-  const map = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+  const hour = parts.find((part) => part.type === 'hour')?.value || '0';
+  const minute = parts.find((part) => part.type === 'minute')?.value || '0';
+  const second = parts.find((part) => part.type === 'second')?.value || '0';
   return {
-    hour: Number(map.hour || 0),
-    minute: Number(map.minute || 0),
-    second: Number(map.second || 0),
+    hour: Number(hour),
+    minute: Number(minute),
+    second: Number(second),
   };
 }
 
@@ -108,7 +126,7 @@ function getOffsetMinutes(iana, date = new Date()) {
     return 0;
   }
 
-  const match = label.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  const match = label.match(GMT_OFFSET_PATTERN);
   if (!match) {
     return 0;
   }
@@ -161,7 +179,7 @@ function calculateMeetingSlots(zones, options = {}, now = new Date()) {
   const candidates = [];
 
   for (let mins = 0; mins <= lookAheadHours * 60; mins += stepMinutes) {
-    const candidate = new Date(start.getTime() + mins * 60_000);
+    const candidate = new Date(start.getTime() + mins * MILLIS_PER_MINUTE);
     const matches = zones.filter((iana) => {
       const parts = getPartsForZone(iana, candidate);
       const localMinutes = parts.hour * 60 + parts.minute;
@@ -171,14 +189,14 @@ function calculateMeetingSlots(zones, options = {}, now = new Date()) {
     if (matches.length) {
       candidates.push({
         date: candidate,
-        score: matches.length,
+        matchCount: matches.length,
         matches,
       });
     }
   }
 
   return candidates
-    .sort((a, b) => (b.score - a.score) || (a.date - b.date))
+    .sort((a, b) => (b.matchCount - a.matchCount) || (a.date - b.date))
     .slice(0, 5);
 }
 
@@ -201,12 +219,24 @@ function loadState() {
 
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    Object.assign(state, parsed);
+    if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed.zones)) state.zones = parsed.zones;
+      if (Array.isArray(parsed.favorites)) state.favorites = parsed.favorites;
+      if (Array.isArray(parsed.recent)) state.recent = parsed.recent;
+      if (typeof parsed.hour12 === 'boolean') state.hour12 = parsed.hour12;
+      if (typeof parsed.lightTheme === 'boolean') state.lightTheme = parsed.lightTheme;
+      if (typeof parsed.layout === 'string') state.layout = parsed.layout;
+      if (typeof parsed.clockStyle === 'string') state.clockStyle = parsed.clockStyle;
+      if (typeof parsed.clockSize === 'string') state.clockSize = parsed.clockSize;
+      if (typeof parsed.font === 'string') state.font = parsed.font;
+      if (typeof parsed.accent === 'string') state.accent = parsed.accent;
+      if (typeof parsed.autoUpdate === 'boolean') state.autoUpdate = parsed.autoUpdate;
+    }
   } catch (_) {
     // ignore malformed state
   }
 
-  state.zones = state.zones.filter((zone) => safeCatalogItem(zone)).slice(0, 12);
+  state.zones = state.zones.filter((zone) => isValidTimezone(zone)).slice(0, MAX_ZONES);
   if (!state.zones.length) {
     state.zones = [...DEFAULT_ZONES];
   }
@@ -236,11 +266,11 @@ function saveState() {
 }
 
 function setRecent(iana) {
-  state.recent = [iana, ...state.recent.filter((item) => item !== iana)].slice(0, 6);
+  state.recent = [iana, ...state.recent.filter((item) => item !== iana)].slice(0, MAX_RECENT_ITEMS);
 }
 
 function addTimezone(iana) {
-  if (!state.zones.includes(iana) && state.zones.length < 12) {
+  if (!state.zones.includes(iana) && state.zones.length < MAX_ZONES) {
     state.zones.push(iana);
     setRecent(iana);
     renderAll();
@@ -307,55 +337,104 @@ function renderSettings() {
   autoUpdateToggle.checked = state.autoUpdate;
 }
 
-function cardTemplate(iana) {
+function createClockCardElement(iana) {
   const zone = safeCatalogItem(iana);
-  return `
-    <article class="clock-card" data-iana="${iana}">
-      <div class="clock-title-row">
-        <div>
-          <h3 class="clock-title">${zone.city}, ${zone.country}</h3>
-          <p class="clock-meta">${zone.region} • ${iana}</p>
-        </div>
-        <div class="clock-actions">
-          <button type="button" class="card-action" data-action="pin" aria-label="Pin timezone ${zone.city}">${state.favorites.includes(iana) ? '★' : '☆'}</button>
-          <button type="button" class="card-action" data-action="remove" aria-label="Remove timezone ${zone.city}">✕</button>
-        </div>
-      </div>
-      <div class="analog-clock" aria-hidden="true">
-        <span class="hand hand-hour"></span>
-        <span class="hand hand-minute"></span>
-        <span class="hand hand-second"></span>
-        <span class="center-dot"></span>
-      </div>
-      <div class="digital-time">--:--:--</div>
-      <div class="clock-date">---</div>
-      <div class="clock-detail offset">Offset: --</div>
-      <div class="clock-detail diff">Local difference: --</div>
-      <div class="clock-detail sun">Sunrise/Sunset: ${zone.sunrise}/${zone.sunset}</div>
-    </article>
-  `;
+  const article = document.createElement('article');
+  article.className = 'clock-card';
+  article.dataset.iana = iana;
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'clock-title-row';
+
+  const titleGroup = document.createElement('div');
+  const title = document.createElement('h3');
+  title.className = 'clock-title';
+  title.textContent = `${zone.city}, ${zone.country}`;
+  const meta = document.createElement('p');
+  meta.className = 'clock-meta';
+  meta.textContent = `${zone.region} • ${iana}`;
+  titleGroup.append(title, meta);
+
+  const actions = document.createElement('div');
+  actions.className = 'clock-actions';
+  const pinButton = document.createElement('button');
+  pinButton.type = 'button';
+  pinButton.className = 'card-action';
+  pinButton.dataset.action = 'pin';
+  pinButton.setAttribute('aria-label', `Pin timezone ${zone.city}`);
+  pinButton.textContent = state.favorites.includes(iana) ? '★' : '☆';
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.className = 'card-action';
+  removeButton.dataset.action = 'remove';
+  removeButton.setAttribute('aria-label', `Remove timezone ${zone.city}`);
+  removeButton.textContent = '✕';
+  actions.append(pinButton, removeButton);
+
+  titleRow.append(titleGroup, actions);
+
+  const analogClock = document.createElement('div');
+  analogClock.className = 'analog-clock';
+  analogClock.setAttribute('aria-hidden', 'true');
+  ['hour', 'minute', 'second'].forEach((hand) => {
+    const handEl = document.createElement('span');
+    handEl.className = `hand hand-${hand}`;
+    analogClock.append(handEl);
+  });
+  const centerDot = document.createElement('span');
+  centerDot.className = 'center-dot';
+  analogClock.append(centerDot);
+
+  const digitalTime = document.createElement('div');
+  digitalTime.className = 'digital-time';
+  digitalTime.textContent = '--:--:--';
+  const date = document.createElement('div');
+  date.className = 'clock-date';
+  date.textContent = '---';
+  const offset = document.createElement('div');
+  offset.className = 'clock-detail offset';
+  offset.textContent = 'Offset: --';
+  const diff = document.createElement('div');
+  diff.className = 'clock-detail diff';
+  diff.textContent = 'Local difference: --';
+  const sun = document.createElement('div');
+  sun.className = 'clock-detail sun';
+  sun.textContent = `Sunrise/Sunset: ${zone.sunrise}/${zone.sunset}`;
+
+  article.append(titleRow, analogClock, digitalTime, date, offset, diff, sun);
+  return article;
 }
 
 function updateClockCard(el, now) {
   const iana = el.dataset.iana;
+  const refs = el._clockRefs || {
+    digitalTime: el.querySelector('.digital-time'),
+    clockDate: el.querySelector('.clock-date'),
+    offset: el.querySelector('.offset'),
+    diff: el.querySelector('.diff'),
+    hourHand: el.querySelector('.hand-hour'),
+    minuteHand: el.querySelector('.hand-minute'),
+    secondHand: el.querySelector('.hand-second'),
+  };
+  el._clockRefs = refs;
   const time = getTimeForZone(iana, now, state.hour12);
   const date = getDateForZone(iana, now);
   const offset = formatOffset(getOffsetMinutes(iana, now));
-  const diff = computeDifferenceHours(Intl.DateTimeFormat().resolvedOptions().timeZone, iana, now);
+  const diff = computeDifferenceHours(USER_TIMEZONE, iana, now);
   const parts = getPartsForZone(iana, now);
 
-  el.querySelector('.digital-time').textContent = time;
-  el.querySelector('.clock-date').textContent = date;
-  el.querySelector('.offset').textContent = `Offset: ${offset}`;
-  el.querySelector('.diff').textContent = `Local difference: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}h`;
+  refs.digitalTime.textContent = time;
+  refs.clockDate.textContent = date;
+  refs.offset.textContent = `Offset: ${offset}`;
+  refs.diff.textContent = `Local difference: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}h`;
 
   const hourDeg = ((parts.hour % 12) + parts.minute / 60) * 30;
   const minuteDeg = (parts.minute + parts.second / 60) * 6;
   const secondDeg = parts.second * 6;
 
-  el.querySelector('.hand-hour').style.transform = `translateX(-50%) rotate(${hourDeg}deg)`;
-  el.querySelector('.hand-minute').style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
-  el.querySelector('.hand-second').style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
+  refs.hourHand.style.transform = `translateX(-50%) rotate(${hourDeg}deg)`;
+  refs.minuteHand.style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
+  refs.secondHand.style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
 }
 
 function updateClocks(force = false) {
@@ -370,9 +449,10 @@ function updateClocks(force = false) {
 
 function renderClockBoard() {
   const container = document.getElementById('clocks-container');
-  container.innerHTML = sortedZones().map((iana) => cardTemplate(iana)).join('');
+  const cards = sortedZones().map((iana) => createClockCardElement(iana));
+  container.replaceChildren(...cards);
 
-  container.querySelectorAll('.clock-card').forEach((card) => {
+  cards.forEach((card) => {
     const iana = card.dataset.iana;
     card.querySelector('[data-action="remove"]').addEventListener('click', () => removeTimezone(iana));
     card.querySelector('[data-action="pin"]').addEventListener('click', () => toggleFavorite(iana));
@@ -383,11 +463,17 @@ function renderClockBoard() {
 
 function renderChips(containerId, zones, clickHandler) {
   const container = document.getElementById(containerId);
-  container.innerHTML = zones
-    .map((zone) => `<button type="button" class="chip" data-iana="${zone.iana || zone}">${zone.city || safeCatalogItem(zone).city}</button>`)
-    .join('');
+  const buttons = zones.map((zone) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chip';
+    button.dataset.iana = zone.iana || zone;
+    button.textContent = zone.city || safeCatalogItem(zone).city;
+    return button;
+  });
 
-  container.querySelectorAll('.chip').forEach((button) => {
+  container.replaceChildren(...buttons);
+  buttons.forEach((button) => {
     button.addEventListener('click', () => clickHandler(button.dataset.iana));
   });
 }
@@ -407,9 +493,13 @@ function renderPopular() {
 
 function renderConverterSelectors() {
   const source = document.getElementById('converter-source');
-  source.innerHTML = sortedZones()
-    .map((iana) => `<option value="${iana}">${safeCatalogItem(iana).city} (${iana})</option>`)
-    .join('');
+  const options = sortedZones().map((iana) => {
+    const option = document.createElement('option');
+    option.value = iana;
+    option.textContent = `${safeCatalogItem(iana).city} (${iana})`;
+    return option;
+  });
+  source.replaceChildren(...options);
 }
 
 function parseDateInput(dateStr) {
@@ -417,12 +507,29 @@ function parseDateInput(dateStr) {
   return { year, month, day };
 }
 
+function formatDateInput(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Converts a local wall-clock date/time in a source timezone into UTC.
+ * Assumes dateInput is YYYY-MM-DD and timeInput is HH:mm (24-hour).
+ * It iteratively derives offset via Intl for the source timezone and subtracts it.
+ */
 function zonedTimeToUtc(dateInput, timeInput, sourceIana) {
   const { year, month, day } = parseDateInput(dateInput);
   const [hour, minute] = timeInput.split(':').map(Number);
-  const guess = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
-  const offset = getOffsetMinutes(sourceIana, guess);
-  return new Date(guess.getTime() - offset * 60_000);
+  const wallClockUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+  let guessUtc = wallClockUtc;
+  for (let iteration = 0; iteration < MAX_OFFSET_ITERATIONS; iteration += 1) {
+    const offset = getOffsetMinutes(sourceIana, new Date(guessUtc));
+    const nextGuess = wallClockUtc - offset * MILLIS_PER_MINUTE;
+    if (nextGuess === guessUtc) {
+      break;
+    }
+    guessUtc = nextGuess;
+  }
+  return new Date(guessUtc);
 }
 
 function renderConverterResults() {
@@ -432,18 +539,25 @@ function renderConverterResults() {
   const resultContainer = document.getElementById('converter-results');
 
   if (!source || !timeValue || !dateValue) {
-    resultContainer.innerHTML = '';
+    resultContainer.replaceChildren();
     return;
   }
 
   const utcDate = zonedTimeToUtc(dateValue, timeValue, source);
-  resultContainer.innerHTML = sortedZones()
-    .map((iana) => {
-      const converted = getTimeForZone(iana, utcDate, state.hour12);
-      const diff = computeDifferenceHours(source, iana, utcDate);
-      return `<div class="result-item"><strong>${safeCatalogItem(iana).city}</strong>: ${converted} <span class="clock-detail">(${diff >= 0 ? '+' : ''}${diff.toFixed(1)}h)</span></div>`;
-    })
-    .join('');
+  const items = sortedZones().map((iana) => {
+    const converted = getTimeForZone(iana, utcDate, state.hour12);
+    const diff = computeDifferenceHours(source, iana, utcDate);
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    const city = document.createElement('strong');
+    city.textContent = safeCatalogItem(iana).city;
+    const detail = document.createElement('span');
+    detail.className = 'clock-detail';
+    detail.textContent = ` (${diff >= 0 ? '+' : ''}${diff.toFixed(1)}h)`;
+    item.append(city, `: ${converted}`, detail);
+    return item;
+  });
+  resultContainer.replaceChildren(...items);
 }
 
 function renderMeetingResults() {
@@ -454,21 +568,32 @@ function renderMeetingResults() {
 
   const list = document.getElementById('meeting-results');
   if (!results.length) {
-    list.innerHTML = '<li class="result-item status-bad">No overlapping slots found for current constraints.</li>';
+    const item = document.createElement('li');
+    item.className = 'result-item status-bad';
+    item.textContent = 'No overlapping slots found for current constraints.';
+    list.replaceChildren(item);
     return;
   }
 
-  list.innerHTML = results
-    .map((slot) => {
-      const localLabel = getFormatter(Intl.DateTimeFormat().resolvedOptions().timeZone, {
-        weekday: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(slot.date);
-      const matches = slot.matches.map((iana) => safeCatalogItem(iana).city).join(', ');
-      return `<li class="result-item"><strong class="status-good">${slot.score}/${state.zones.length} zones</strong> • ${localLabel}<br><span class="clock-detail">${matches}</span></li>`;
-    })
-    .join('');
+  const items = results.map((slot) => {
+    const localLabel = getFormatter(USER_TIMEZONE, {
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(slot.date);
+    const matches = slot.matches.map((iana) => safeCatalogItem(iana).city).join(', ');
+    const item = document.createElement('li');
+    item.className = 'result-item';
+    const score = document.createElement('strong');
+    score.className = 'status-good';
+    score.textContent = `Available in ${slot.matchCount}/${state.zones.length} zones`;
+    const details = document.createElement('span');
+    details.className = 'clock-detail';
+    details.textContent = matches;
+    item.append(score, ` • ${localLabel}`, document.createElement('br'), details);
+    return item;
+  });
+  list.replaceChildren(...items);
 }
 
 function bindEvents() {
@@ -569,7 +694,7 @@ function renderAll() {
 function initialize() {
   loadState();
   const today = new Date();
-  document.getElementById('converter-date').value = today.toISOString().slice(0, 10);
+  document.getElementById('converter-date').value = formatDateInput(today);
   bindEvents();
   renderAll();
   updateClocks(true);

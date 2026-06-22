@@ -17,8 +17,7 @@ test('formatOffset formats minutes as UTC +/- hh:mm', () => {
 
 test('computeDifferenceHours returns number-like output', () => {
   const diff = computeDifferenceHours('UTC', 'Asia/Tokyo', new Date('2025-01-15T12:00:00Z'));
-  assert.equal(typeof diff, 'number');
-  assert.ok(diff >= 8 && diff <= 10);
+  assert.equal(diff, 9);
 });
 
 test('searchTimezones finds zones by city/region/country', () => {
@@ -41,11 +40,13 @@ test('calculateMeetingSlots returns sorted candidate slots', () => {
   assert.ok(Array.isArray(slots));
   assert.ok(slots.length <= 5);
   if (slots.length > 1) {
-    assert.ok(slots[0].score >= slots[1].score);
+    assert.ok(slots[0].matchCount >= slots[1].matchCount);
   }
 });
 
 test('zonedTimeToUtc converts date/time + source timezone to Date', () => {
-  const result = zonedTimeToUtc('2025-01-01', '09:00', 'UTC');
-  assert.equal(result.toISOString(), '2025-01-01T09:00:00.000Z');
+  const utcResult = zonedTimeToUtc('2025-01-01', '09:00', 'UTC');
+  const tokyoResult = zonedTimeToUtc('2025-01-01', '09:00', 'Asia/Tokyo');
+  assert.equal(utcResult.toISOString(), '2025-01-01T09:00:00.000Z');
+  assert.equal(tokyoResult.toISOString(), '2025-01-01T00:00:00.000Z');
 });
